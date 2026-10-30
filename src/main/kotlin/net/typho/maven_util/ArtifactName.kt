@@ -1,6 +1,7 @@
 package net.typho.maven_util
 
-import net.typho.data_util.impl.xml.XMLElement
+import net.typho.data_util.anno.FieldCodec
+import net.typho.data_util.xml.XMLElement
 
 data class ArtifactName(
     /**
@@ -21,11 +22,13 @@ data class ArtifactName(
     /**
      * The classifier (typically used to publish extra content that isn't needed in the main artifact), ex. `sources`, `javadoc`
      */
+    @FieldCodec("Codec.STRING.optional()")
     @JvmField
     val classifier: String?,
     /**
      * The file type of the artifact (also known as the extension), ex. `jar`
      */
+    @FieldCodec("Codec.STRING.optional(\"jar\")")
     @JvmField
     val type: String?
 ) {
