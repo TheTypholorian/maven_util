@@ -3,7 +3,6 @@ package net.typho.maven_util
 import java.util.function.Function
 
 sealed interface LookupResult<R : Any> : AutoCloseable {
-    val artifact: ArtifactCoords
     val value: R?
 
     fun orThrow(): R
@@ -13,7 +12,6 @@ sealed interface LookupResult<R : Any> : AutoCloseable {
     fun <N : Any> map(func: Function<R, N>): LookupResult<N>
 
     data class Success<R : Any>(
-        override val artifact: ArtifactCoords,
         override val value: R
     ) : LookupResult<R> {
         override fun orThrow() = value
@@ -28,16 +26,15 @@ sealed interface LookupResult<R : Any> : AutoCloseable {
 
         @Suppress("UNCHECKED_CAST")
         override fun <N : Any> cast(): LookupResult<N> {
-            return Success(artifact, value as N)
+            return Success(value as N)
         }
 
         override fun <N : Any> map(func: Function<R, N>): LookupResult<N> {
-            return Success(artifact, func.apply(value))
+            return Success(func.apply(value))
         }
     }
 
     data class Error<R : Any>(
-        override val artifact: ArtifactCoords,
         @JvmField
         val error: String
     ) : LookupResult<R> {
@@ -55,7 +52,7 @@ sealed interface LookupResult<R : Any> : AutoCloseable {
 
         @Suppress("UNCHECKED_CAST")
         override fun <N : Any> cast(): LookupResult<N> {
-            return Error(artifact, error)
+            return Error(error)
         }
 
         override fun <N : Any> map(func: Function<R, N>): LookupResult<N> {

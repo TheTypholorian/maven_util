@@ -28,13 +28,13 @@ object MavenUtil {
         val path = artifact.toPath()
         val errors = repositories.map { repo ->
             try {
-                return LookupResult.Success(artifact, repo.resolve(path).toURL().openStream())
+                return LookupResult.Success(repo.resolve(path).toURL().openStream())
             } catch (e: IOException) {
                 "\tTried '$repo' ($e)"
             }
         }
 
-        return LookupResult.Error(artifact, "Cannot find artifact $artifact:\n" + errors.joinToString(separator = "\n"))
+        return LookupResult.Error("Cannot find artifact $artifact:\n" + errors.joinToString(separator = "\n"))
     }
 
     /**
@@ -44,7 +44,7 @@ object MavenUtil {
         val cached = cache.resolve(artifact.toPath())
 
         if (cached.exists()) {
-            return LookupResult.Success(artifact, cached)
+            return LookupResult.Success(cached)
         }
 
         val actual = lookup(artifact, repositories)
@@ -58,7 +58,7 @@ object MavenUtil {
             }
         }
 
-        return LookupResult.Success(artifact, path)
+        return LookupResult.Success(path)
     }
 
     /**
@@ -66,13 +66,13 @@ object MavenUtil {
      */
     fun readPOM(input: InputStream) = XMLFormat.read(ArtifactPOM.CODEC, SerializedData(input.readBytes()))
 
-    fun cachedLookupDependencies(artifact: ArtifactCoords, cache: Path, repositories: List<URI>) = lookupDependencies(artifact) { cachedLookup(it, cache, repositories).map { it.inputStream() } }
+    fun cachedLookupDependencies(artifacts: List<ArtifactCoords>, cache: Path, repositories: List<URI>) = lookupDependencies(artifacts) { cachedLookup(it, cache, repositories).map { it.inputStream() } }
 
-    fun lookupDependencies(artifact: ArtifactCoords, repositories: List<URI>) = lookupDependencies(artifact) { lookup(it, repositories) }
+    fun lookupDependencies(artifacts: List<ArtifactCoords>, repositories: List<URI>) = lookupDependencies(artifacts) { lookup(it, repositories) }
 
-    fun lookupDependencies(artifact: ArtifactCoords, lookup: Function<ArtifactCoords, LookupResult<InputStream>>): LookupResult<List<ArtifactCoords>> {
+    fun lookupDependencies(artifacts: List<ArtifactCoords>, lookup: Function<ArtifactCoords, LookupResult<InputStream>>): LookupResult<List<ArtifactCoords>> {
         val dependencies = mutableMapOf<ArtifactName, ArtifactCoords>()
-        val queue = mutableListOf(artifact)
+        val queue = artifacts.toMutableList()
 
         while (queue.isNotEmpty()) {
             val process = queue.toList()
@@ -86,7 +86,7 @@ object MavenUtil {
                     val coords = ArtifactCoords(
                         dep.groupId,
                         dep.artifactId,
-                        dep.version ?: return LookupResult.Error(artifact, "Dependency ${dep.groupId}:${dep.artifactId} from artifact $artifact is missing a version"),
+                        dep.version ?: return LookupResult.Error("Dependency ${dep.groupId}:${dep.artifactId} from artifact $artifact is missing a version"),
                         dep.classifier,
                         dep.type
                     )
@@ -96,6 +96,6 @@ object MavenUtil {
             }
         }
 
-        return LookupResult.Success(artifact, dependencies.values.toList())
+        return LookupResult.Success(dependencies.values.toList())
     }
 }
