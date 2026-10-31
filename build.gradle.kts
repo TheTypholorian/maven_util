@@ -11,5 +11,5 @@ repositories {
 }
 
 dependencies {
-    implementation("net.typho:data_util:2.2.1")
+    implementation("net.typho:data_util:2.3.6")
 }

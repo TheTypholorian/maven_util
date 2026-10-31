@@ -1,6 +1,5 @@
 package net.typho.maven_util
 
-import net.typho.data_util.anno.FieldCodec
 import net.typho.data_util.codec.Codec
 
 data class ArtifactCoords(
@@ -22,7 +21,6 @@ data class ArtifactCoords(
     /**
      * The classifier (typically used to publish extra content that isn't needed in the main artifact), ex. `sources`, `javadoc`
      */
-    @FieldCodec("Codec.STRING.optional()")
     @JvmField
     val classifier: String? = null,
     /**
@@ -30,7 +28,6 @@ data class ArtifactCoords(
      *
      * Defaults to `jar`
      */
-    @FieldCodec("Codec.STRING.optional()")
     @JvmField
     val extension: String? = null
 ) {
