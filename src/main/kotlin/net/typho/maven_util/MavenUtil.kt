@@ -24,27 +24,27 @@ object MavenUtil {
     /**
      * Returned [InputStream] must be closed by the caller
      */
-    fun lookup(artifact: ArtifactCoords, repositories: List<URI>): LookupResult<InputStream> {
+    fun lookup(artifact: ArtifactCoords, repositories: List<URI>): LookupResult<ArtifactPointer<InputStream>> {
         val path = artifact.toPath()
         val errors = repositories.map { repo ->
             try {
-                return LookupResult.Success(repo.resolve(path).toURL().openStream())
+                return LookupResult.Success(ArtifactPointer(repo, repo.resolve(path).toURL().openStream()))
             } catch (e: IOException) {
-                "\tTried '$repo' ($e)"
+                "Tried '$repo' ($e)"
             }
         }
 
-        return LookupResult.Error("Cannot find artifact $artifact:\n" + errors.joinToString(separator = "\n"))
+        return LookupResult.Error("Cannot find artifact $artifact:\n" + errors.joinToString(separator = "\n\t"))
     }
 
     /**
      * Returned [InputStream] must be closed by the caller
      */
-    fun cachedLookup(artifact: ArtifactCoords, cache: Path, repositories: List<URI>): LookupResult<Path> {
+    fun cachedLookup(artifact: ArtifactCoords, cache: Path, repositories: List<URI>): LookupResult<ArtifactPointer<Path>> {
         val cached = cache.resolve(artifact.toPath())
 
         if (cached.exists()) {
-            return LookupResult.Success(cached)
+            return LookupResult.Success(ArtifactPointer(null, cached))
         }
 
         val actual = lookup(artifact, repositories)
@@ -52,13 +52,13 @@ object MavenUtil {
         val path = cache.resolve(artifact.toPath())
         path.parent.createDirectories()
 
-        read.use {
+        read.artifact.use {
             path.outputStream().use { write ->
-                read.copyTo(write)
+                read.artifact.copyTo(write)
             }
         }
 
-        return LookupResult.Success(path)
+        return LookupResult.Success(ArtifactPointer(read.repository, path))
     }
 
     /**
@@ -66,32 +66,43 @@ object MavenUtil {
      */
     fun readPOM(input: InputStream) = XMLFormat.read(ArtifactPOM.CODEC, SerializedData(input.readBytes()))
 
-    fun cachedLookupDependencies(artifacts: List<ArtifactCoords>, cache: Path, repositories: List<URI>) = lookupDependencies(artifacts) { cachedLookup(it, cache, repositories).map { it.inputStream() } }
+    /**
+     * Returned list contains the input artifacts
+     */
+    fun cachedLookupDependencies(artifacts: List<ArtifactCoords>, cache: Path, repositories: List<URI>) = lookupDependencies(artifacts) { cachedLookup(it, cache, repositories).map { ArtifactPointer(it.repository, it.artifact.inputStream()) } }
 
+    /**
+     * Returned list contains the input artifacts
+     */
     fun lookupDependencies(artifacts: List<ArtifactCoords>, repositories: List<URI>) = lookupDependencies(artifacts) { lookup(it, repositories) }
 
-    fun lookupDependencies(artifacts: List<ArtifactCoords>, lookup: Function<ArtifactCoords, LookupResult<InputStream>>): LookupResult<List<ArtifactCoords>> {
-        val dependencies = mutableMapOf<ArtifactName, ArtifactCoords>()
+    /**
+     * Returned list contains the input artifacts
+     */
+    fun lookupDependencies(artifacts: List<ArtifactCoords>, lookup: Function<ArtifactCoords, LookupResult<ArtifactPointer<InputStream>>>): LookupResult<List<ArtifactPointer<ArtifactCoords>>> {
+        val dependencies = mutableMapOf<ArtifactName, ArtifactPointer<ArtifactCoords>>()
+        val processed = mutableSetOf<ArtifactName>()
         val queue = artifacts.toMutableList()
 
         while (queue.isNotEmpty()) {
-            val process = queue.toList()
+            val queue1 = queue.toList()
             queue.clear()
 
-            for (artifact in process) {
-                val result = lookup.apply(artifact.copy(extension = "pom"))
-                val pom = (result.value ?: return result.cast()).use { readPOM(it) }
+            for (artifact in queue1) {
+                val result = lookup.apply(artifact.copy(extension = "pom")).let { it.value ?: return it.cast() }
+                val pom = readPOM(result.artifact)
+                dependencies.putIfAbsent(artifact.name, ArtifactPointer(result.repository, artifact))
 
                 for (dep in pom.getOverlayedDependencies()) {
-                    val coords = ArtifactCoords(
-                        dep.groupId,
-                        dep.artifactId,
-                        dep.version ?: return LookupResult.Error("Dependency ${dep.groupId}:${dep.artifactId} from artifact $artifact is missing a version"),
-                        dep.classifier,
-                        dep.type
-                    )
-                    dependencies.putIfAbsent(coords.name, coords)
-                    queue.add(coords)
+                    if (processed.add(ArtifactName(dep.groupId, dep.artifactId))) {
+                        queue.add(ArtifactCoords(
+                            dep.groupId,
+                            dep.artifactId,
+                            dep.version ?: return LookupResult.Error("Dependency ${dep.groupId}:${dep.artifactId} from artifact $artifact is missing a version"),
+                            dep.classifier,
+                            dep.type
+                        ))
+                    }
                 }
             }
         }
