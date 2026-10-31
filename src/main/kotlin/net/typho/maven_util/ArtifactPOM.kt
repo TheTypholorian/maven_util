@@ -1,4 +1,4 @@
-package net.typho.maven_util.pom
+package net.typho.maven_util
 
 import net.typho.data_util.anno.FieldCodec
 import net.typho.data_util.codec.Codec
@@ -44,7 +44,7 @@ data class ArtifactPOM(
     }
 
     data class DependencyManagement(
-        @FieldCodec("ArtifactPOM.DependencyInfo.CODEC.listOf().optional(listOf())")
+        @FieldCodec("ArtifactPOM.DependencyInfo.CODEC.listOf()")
         @JvmField
         val dependencies: List<DependencyInfo>
     ) {

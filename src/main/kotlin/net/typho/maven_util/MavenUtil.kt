@@ -2,22 +2,14 @@ package net.typho.maven_util
 
 import net.typho.data_util.SerializedData
 import net.typho.data_util.xml.XMLFormat
-import net.typho.maven_util.pom.ArtifactPOM
 import java.io.IOException
 import java.io.InputStream
 import java.net.URI
 import java.nio.file.Path
 import kotlin.io.path.Path
-import kotlin.io.path.absolute
 import kotlin.io.path.createDirectories
 import kotlin.io.path.inputStream
 import kotlin.io.path.outputStream
-
-fun main() {
-    val result = MavenUtil.cachedLookup(Path("maven").absolute(), listOf(MavenUtil.TYPHO_NET), ArtifactCoords("net.typho", "data_util", "2.2.1"))
-    println(result)
-    result.close()
-}
 
 object MavenUtil {
     @JvmField
@@ -78,24 +70,31 @@ object MavenUtil {
     fun readPOM(input: InputStream) = XMLFormat.read(ArtifactPOM.CODEC, SerializedData(input.readBytes()))
 
     fun lookupDependencies(cache: Path?, repositories: List<URI>, artifact: ArtifactCoords): LookupResult<List<ArtifactCoords>> {
-        val dependencies = mutableMapOf<Int, MutableList<ArtifactCoords>>()
-        var depth = 0
+        val dependencies = mutableMapOf<ArtifactName, ArtifactCoords>()
         val queue = mutableListOf(artifact)
 
         while (queue.isNotEmpty()) {
             val process = queue.toList()
             queue.clear()
-            dependencies[depth] = mutableListOf()
 
             for (artifact in process) {
                 val result = lookup(cache, repositories, artifact.copy(extension = "pom"))
                 val pom = (result.value ?: return result.cast()).use { readPOM(it) }
 
                 for (dep in pom.getOverlayedDependencies()) {
+                    val coords = ArtifactCoords(
+                        dep.groupId,
+                        dep.artifactId,
+                        dep.version ?: return LookupResult.Error(artifact, "Dependency ${dep.groupId}:${dep.artifactId} from artifact $artifact is missing a version"),
+                        dep.classifier,
+                        dep.type
+                    )
+                    dependencies.putIfAbsent(coords.name, coords)
+                    queue.add(coords)
                 }
             }
-
-            depth++
         }
+
+        return LookupResult.Success(artifact, dependencies.values.toList())
     }
 }

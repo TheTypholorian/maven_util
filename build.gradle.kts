@@ -11,6 +11,5 @@ repositories {
 }
 
 dependencies {
-    implementation("net.typho:data_util:2.2.0")
-    implementation("org.semver4j:semver4j:6.0.0")
+    implementation("net.typho:data_util:2.2.1")
 }
