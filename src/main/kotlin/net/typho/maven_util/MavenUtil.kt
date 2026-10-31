@@ -6,8 +6,10 @@ import java.io.IOException
 import java.io.InputStream
 import java.net.URI
 import java.nio.file.Path
+import java.util.function.Function
 import kotlin.io.path.Path
 import kotlin.io.path.createDirectories
+import kotlin.io.path.exists
 import kotlin.io.path.inputStream
 import kotlin.io.path.outputStream
 
@@ -22,12 +24,7 @@ object MavenUtil {
     /**
      * Returned [InputStream] must be closed by the caller
      */
-    fun lookup(cache: Path?, repositories: List<URI>, artifact: ArtifactCoords) = if (cache == null) lookup(repositories, artifact) else cachedLookup(cache, repositories, artifact)
-
-    /**
-     * Returned [InputStream] must be closed by the caller
-     */
-    fun lookup(repositories: List<URI>, artifact: ArtifactCoords): LookupResult<InputStream> {
+    fun lookup(artifact: ArtifactCoords, repositories: List<URI>): LookupResult<InputStream> {
         val path = artifact.toPath()
         val errors = repositories.map { repo ->
             try {
@@ -43,15 +40,15 @@ object MavenUtil {
     /**
      * Returned [InputStream] must be closed by the caller
      */
-    fun cachedLookup(cache: Path, repositories: List<URI>, artifact: ArtifactCoords): LookupResult<InputStream> {
-        val cached = lookup(listOf(cache.toUri()), artifact)
+    fun cachedLookup(artifact: ArtifactCoords, cache: Path, repositories: List<URI>): LookupResult<Path> {
+        val cached = cache.resolve(artifact.toPath())
 
-        if (cached is LookupResult.Success) {
-            return cached
+        if (cached.exists()) {
+            return LookupResult.Success(artifact, cached)
         }
 
-        val actual = lookup(repositories, artifact)
-        val read = actual.value ?: return actual
+        val actual = lookup(artifact, repositories)
+        val read = actual.value ?: return actual.cast()
         val path = cache.resolve(artifact.toPath())
         path.parent.createDirectories()
 
@@ -61,7 +58,7 @@ object MavenUtil {
             }
         }
 
-        return LookupResult.Success(artifact, path.inputStream())
+        return LookupResult.Success(artifact, path)
     }
 
     /**
@@ -69,7 +66,11 @@ object MavenUtil {
      */
     fun readPOM(input: InputStream) = XMLFormat.read(ArtifactPOM.CODEC, SerializedData(input.readBytes()))
 
-    fun lookupDependencies(cache: Path?, repositories: List<URI>, artifact: ArtifactCoords): LookupResult<List<ArtifactCoords>> {
+    fun cachedLookupDependencies(artifact: ArtifactCoords, cache: Path, repositories: List<URI>) = lookupDependencies(artifact) { cachedLookup(it, cache, repositories).map { it.inputStream() } }
+
+    fun lookupDependencies(artifact: ArtifactCoords, repositories: List<URI>) = lookupDependencies(artifact) { lookup(it, repositories) }
+
+    fun lookupDependencies(artifact: ArtifactCoords, lookup: Function<ArtifactCoords, LookupResult<InputStream>>): LookupResult<List<ArtifactCoords>> {
         val dependencies = mutableMapOf<ArtifactName, ArtifactCoords>()
         val queue = mutableListOf(artifact)
 
@@ -78,7 +79,7 @@ object MavenUtil {
             queue.clear()
 
             for (artifact in process) {
-                val result = lookup(cache, repositories, artifact.copy(extension = "pom"))
+                val result = lookup.apply(artifact.copy(extension = "pom"))
                 val pom = (result.value ?: return result.cast()).use { readPOM(it) }
 
                 for (dep in pom.getOverlayedDependencies()) {
