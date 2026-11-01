@@ -64,7 +64,7 @@ object MavenUtil {
     /**
      * [input] must be closed by the caller
      */
-    fun readPOM(input: InputStream) = XMLFormat.read(ArtifactPOM.CODEC, SerializedData(input.readBytes()))
+    fun readPOM(input: InputStream) = XMLFormat.read(ArtifactPOM.CODEC, SerializedData(input.reader().readText()))
 
     /**
      * Returned list contains the input artifacts
