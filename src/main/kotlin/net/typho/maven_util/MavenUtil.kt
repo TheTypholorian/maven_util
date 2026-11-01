@@ -64,7 +64,7 @@ object MavenUtil {
     /**
      * [input] must be closed by the caller
      */
-    fun readPOM(input: InputStream) = XMLFormat.read(ArtifactPOM.CODEC, SerializedData(input.reader().readText()))
+    fun readPOM(input: InputStream) = XMLFormat.read(RawPOM.CODEC, SerializedData(input.reader().readText()))
 
     /**
      * Returned list contains the input artifacts
@@ -82,26 +82,20 @@ object MavenUtil {
     fun lookupDependencies(artifacts: List<ArtifactCoords>, lookup: Function<ArtifactCoords, LookupResult<ArtifactPointer<InputStream>>>): LookupResult<List<ArtifactPointer<ArtifactCoords>>> {
         val dependencies = mutableMapOf<ArtifactName, ArtifactPointer<ArtifactCoords>>()
         val processed = mutableSetOf<ArtifactName>()
-        val queue = artifacts.toMutableList()
+        val queue = artifacts.map { it to listOf<ArtifactName>() }.toMutableList()
 
         while (queue.isNotEmpty()) {
             val queue1 = queue.toList()
             queue.clear()
 
-            for (artifact in queue1) {
+            for ((artifact, exclusions) in queue1) {
                 val result = lookup.apply(artifact.copy(extension = "pom")).let { it.value ?: return it.cast() }
-                val pom = readPOM(result.artifact)
+                val pom = readPOM(result.artifact).refine { readPOM(lookup.apply(it).orThrow().artifact) }
                 dependencies.putIfAbsent(artifact.name, ArtifactPointer(result.repository, artifact))
 
-                for (dep in pom.getOverlayedDependencies()) {
-                    if (processed.add(ArtifactName(dep.groupId, dep.artifactId))) {
-                        queue.add(ArtifactCoords(
-                            dep.groupId,
-                            dep.artifactId,
-                            dep.version ?: return LookupResult.Error("Dependency ${dep.groupId}:${dep.artifactId} from artifact $artifact is missing a version"),
-                            dep.classifier,
-                            dep.type
-                        ))
+                for (dep in pom.dependencies) {
+                    if (!exclusions.contains(artifact.name) && processed.add(dep.coords.name)) {
+                        queue.add(dep.coords to dep.exclusions)
                     }
                 }
             }
