@@ -82,20 +82,22 @@ object MavenUtil {
     fun lookupDependencies(artifacts: List<ArtifactCoords>, lookup: Function<ArtifactCoords, LookupResult<ArtifactPointer<InputStream>>>): LookupResult<List<ArtifactPointer<ArtifactCoords>>> {
         val dependencies = mutableMapOf<ArtifactName, ArtifactPointer<ArtifactCoords>>()
         val processed = mutableSetOf<ArtifactName>()
-        val queue = artifacts.map { it to listOf<ArtifactName>() }.toMutableList()
+        val queue = artifacts.map { RefinedPOM.DependencyInfo(it, "compile", null, false, listOf()) }.toMutableList()
 
         while (queue.isNotEmpty()) {
             val queue1 = queue.toList()
             queue.clear()
 
-            for ((artifact, exclusions) in queue1) {
-                val result = lookup.apply(artifact.copy(extension = "pom")).let { it.value ?: return it.cast() }
+            for ((artifact, scope, systemPath, optional, exclusions) in queue1) {
+                val result = lookup.apply(artifact.copy(extension = "pom")).let {
+                    it.value ?: if (optional) continue else return it.cast()
+                }
                 val pom = readPOM(result.artifact).refine { readPOM(lookup.apply(it).orThrow().artifact) }
                 dependencies.putIfAbsent(artifact.name, ArtifactPointer(result.repository, artifact))
 
                 for (dep in pom.dependencies) {
                     if (!exclusions.contains(artifact.name) && processed.add(dep.coords.name)) {
-                        queue.add(dep.coords to dep.exclusions)
+                        queue.add(dep)
                     }
                 }
             }
