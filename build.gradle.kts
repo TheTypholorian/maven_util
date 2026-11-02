@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "net.typho"
-version = "1.4.1"
+version = "1.5.0"
 
 repositories {
     mavenCentral()
@@ -12,7 +12,7 @@ repositories {
 }
 
 dependencies {
-    implementation("net.typho:data_util:2.3.12")
+    implementation("net.typho:data_util:2.4.0")
 }
 
 kotlin {

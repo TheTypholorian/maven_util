@@ -40,7 +40,8 @@ object MavenUtil {
     /**
      * Returned [InputStream] must be closed by the caller
      */
-    fun cachedLookup(artifact: ArtifactCoords, cache: Path, repositories: List<URI>): LookupResult<ArtifactPointer<Path>> {
+    @JvmOverloads
+    fun cachedLookup(artifact: ArtifactCoords, cache: Path, repositories: List<URI>, listener: DownloadListener? = null): LookupResult<ArtifactPointer<Path>> {
         val cached = cache.resolve(artifact.toPath())
 
         if (cached.exists()) {
@@ -69,7 +70,8 @@ object MavenUtil {
     /**
      * Returned list contains the input artifacts
      */
-    fun cachedLookupDependencies(artifacts: List<ArtifactCoords>, cache: Path, repositories: List<URI>) = lookupDependencies(artifacts) { cachedLookup(it, cache, repositories).map { ArtifactPointer(it.repository, it.artifact.inputStream()) } }
+    @JvmOverloads
+    fun cachedLookupDependencies(artifacts: List<ArtifactCoords>, cache: Path, repositories: List<URI>, listener: DownloadListener? = null) = lookupDependencies(artifacts) { cachedLookup(it, cache, repositories, listener).map { ArtifactPointer(it.repository, it.artifact.inputStream()) } }
 
     /**
      * Returned list contains the input artifacts
