@@ -1,11 +1,12 @@
 package net.typho.maven_util
 
-import java.io.InputStream
+import java.net.URI
 import java.nio.file.Path
 
-interface DownloadListener {
+fun interface DownloadListener {
     fun onDownload(
-        artifact: ArtifactPointer<InputStream>,
+        repository: URI?,
+        artifact: ArtifactCoords,
         to: Path
     )
 }

@@ -51,6 +51,7 @@ object MavenUtil {
         val actual = lookup(artifact, repositories)
         val read = actual.value ?: return actual.cast()
         val path = cache.resolve(artifact.toPath())
+        listener?.onDownload(read.repository, artifact, path)
         path.parent.createDirectories()
 
         read.artifact.use {
