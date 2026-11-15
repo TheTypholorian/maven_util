@@ -1,7 +1,7 @@
 package net.typho.maven_util
 
-import net.typho.data_util.SerializedData
 import net.typho.data_util.xml.XMLFormat
+import net.typho.parsing_util.SerializedData.Companion.asData
 import java.io.IOException
 import java.io.InputStream
 import java.net.URI
@@ -66,7 +66,7 @@ object MavenUtil {
     /**
      * [input] must be closed by the caller
      */
-    fun readPOM(input: InputStream) = XMLFormat.read(RawPOM.CODEC, SerializedData(input.reader().readText()))
+    fun readPOM(input: InputStream) = XMLFormat.read(RawPOM.CODEC, input.reader().readText().asData())
 
     /**
      * Returned list contains the input artifacts
